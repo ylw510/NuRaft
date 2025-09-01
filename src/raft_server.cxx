@@ -112,6 +112,7 @@ raft_server::raft_server(context* ctx, const init_options& opt)
     , test_mode_flag_(opt.test_mode_flag_)
     , self_mark_down_(false)
     , excluded_from_the_quorum_(false)
+    , sm_commit_notifier_target_idx_(0)
 {
     // Reset it with sufficiently big negative offset, so as not to
     // incorrectly consider it as up-to-date.
@@ -278,6 +279,7 @@ raft_server::raft_server(context* ctx, const init_options& opt)
 void raft_server::start_server(bool skip_initial_election_timeout)
 {
     ptr<raft_params> params = ctx_->get_params();
+    sm_commit_notifier_target_idx_ = 0;
     global_mgr* mgr = get_global_mgr();
     if (mgr) {
         p_in("global manager is detected. will use shared thread pool");
@@ -415,7 +417,8 @@ void raft_server::apply_and_log_current_params() {
           "snapshot IO: %s, "
           "parallel log appending: %s, "
           "streaming mode max log gap %d, max bytes %" PRIu64 ", "
-          "full consensus mode: %s",
+          "full consensus mode: %s, "
+          "tracking peer sm committed index: %s",
           params->election_timeout_lower_bound_,
           params->election_timeout_upper_bound_,
           params->heart_beat_interval_,
@@ -440,7 +443,9 @@ void raft_server::apply_and_log_current_params() {
           params->parallel_log_appending_ ? "ON" : "OFF",
           params->max_log_gap_in_stream_,
           params->max_bytes_in_flight_in_stream_,
-          params->use_full_consensus_among_healthy_members_ ? "ON" : "OFF" );
+          params->use_full_consensus_among_healthy_members_ ? "ON" : "OFF",
+          params->track_peers_sm_commit_idx_ ? "ON" : "OFF"
+        );
 
     status_check_timer_.set_duration_ms(params->heart_beat_interval_);
     status_check_timer_.reset();
