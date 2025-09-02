@@ -1022,6 +1022,11 @@ protected:
     std::list<ptr<peer>> get_not_responding_peers(int expiry = 0);
     size_t get_not_responding_peers_count(int expiry = 0, uint64_t required_log_idx = 0);
     size_t get_num_stale_peers();
+    static bool is_excluded_from_quorum(const peer& pp,
+                                        int32_t resp_elapsed_ms,
+                                        int32_t expiry,
+                                        uint64_t required_log_idx,
+                                        bool include_self_mark_down = true);
 
     void for_each_voting_members(
         const std::function<void(const ptr<peer>&, int32_t)>& callback);
@@ -1137,6 +1142,14 @@ protected:
                         ptr<log_entry>& le,
                         bool need_to_handle_commit_elem);
     void commit_conf(ulong idx_to_commit, ptr<log_entry>& le);
+
+    void scan_sm_commit_and_notify(uint64_t idx_upto);
+
+    uint64_t find_sm_commit_idx_to_notify();
+
+    uint64_t update_sm_commit_notifier_target_idx(uint64_t to);
+
+    bool reset_sm_commit_notifier_target_idx(uint64_t expected);
 
     ptr< cmd_result< ptr<buffer> > >
         send_msg_to_leader(ptr<req_msg>& req,
@@ -1725,6 +1738,17 @@ protected:
      * a `AppendEntries` request including invalid one too.
      */
     timer_helper last_rcvd_append_entries_req_;
+
+    /**
+     * Scan each peer's state machine commit and notify callback.
+     * Protected by `lock_`.
+     */
+    std::atomic<uint64_t> sm_commit_notifier_target_idx_;
+
+    /**
+     * Notified index targeted by `sm_commit_notifier_target_idx_`.
+     */
+    std::atomic<uint64_t> sm_commit_notifier_notified_idx_;
 };
 
 } // namespace nuraft;
